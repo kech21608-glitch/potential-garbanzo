@@ -1,17 +1,25 @@
 {
   "functions": {
-    "app.py": {
-      "runtime": "@vercel/python@3.9.0"
+    "api/match.py": {
+      "runtime": "python3.9"
     }
   },
   "routes": [
     {
       "src": "/match_info",
-      "dest": "app.py"
+      "dest": "/api/match.py"
+    },
+    {
+      "src": "/health",
+      "dest": "/api/match.py"
+    },
+    {
+      "src": "/cache_stats",
+      "dest": "/api/match.py"
     },
     {
       "src": "/(.*)",
-      "dest": "app.py"
+      "dest": "/api/match.py"
     }
   ]
 }
