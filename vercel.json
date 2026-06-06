@@ -1,0 +1,17 @@
+{
+  "functions": {
+    "app.py": {
+      "runtime": "@vercel/python@3.9.0"
+    }
+  },
+  "routes": [
+    {
+      "src": "/match_info",
+      "dest": "app.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "app.py"
+    }
+  ]
+}
