@@ -1,14 +1,9 @@
-import os
 import re
-import telebot
 import cloudscraper
 from bs4 import BeautifulSoup
-from flask import Flask, request
+from flask import Flask, request, jsonify
 
-BOT_TOKEN = "8969745395:AAGzXiKEL5sPU1FaZJUmuh3WpT80e3vDMqY"
-bot = telebot.TeleBot(BOT_TOKEN, threaded=False)
 scraper = cloudscraper.create_scraper()
-
 app = Flask(__name__)
 
 def clean_team_name(name):
@@ -68,12 +63,10 @@ def extract_match_info(url):
         
         return info
     except Exception as e:
-        print(f"خطأ: {e}")
-        return None
+        return {"error": str(e)}
 
 def fix_url(raw_url):
     raw_url = raw_url.strip()
-    
     if raw_url.startswith('/'):
         raw_url = 'https://www.ysscores.com/ar/match' + raw_url
     elif raw_url.startswith('78601366'):
@@ -83,52 +76,25 @@ def fix_url(raw_url):
     
     if ':///' in raw_url:
         raw_url = raw_url.replace(':///', '://www.ysscores.com/ar/match/')
-    
     return raw_url
 
-@bot.message_handler(commands=['start'])
-def start_cmd(m):
-    bot.reply_to(m, 
-        "⚽ **بوت معلومات المباريات**\n\n"
-        "أرسل رابط المباراة من ysscores.com\n\n"
-        "**مثال:**\n"
-        "`/match 78601366/Asswehly-SC-vs-Al-Nasr-SC`\n"
-        "أو الرابط الكامل:\n"
-        "`https://www.ysscores.com/ar/match/78601366/Asswehly-SC-vs-Al-Nasr-SC`",
-        parse_mode='Markdown'
-    )
-
-@bot.message_handler(func=lambda m: m.text and ('ysscores.com' in m.text or 'match' in m.text))
-def handle_match(m):
-    raw_url = m.text.strip()
-    if raw_url.startswith('/match'):
-        raw_url = raw_url.replace('/match', '').strip()
-    
-    url = fix_url(raw_url)
-    status = bot.reply_to(m, f"⏳ جاري استخراج المعلومات من الرابط:\n`{url}`", parse_mode='Markdown')
-    info = extract_match_info(url)
-    
-    if info:
-        reply = (f"⚽ **معلومات المباراة**\n\n"
-                 f"🏆 **المباراة:** {info['team1']} 🆚 {info['team2']}\n"
-                 f"🕐 **الوقت:** {info['time']}\n"
-                 f"📅 **التاريخ:** {info['date']}\n"
-                 f"🏟️ **الملعب:** {info['stadium']}\n"
-                 f"📺 **القناة:** {info['channel']}")
-        bot.edit_message_text(reply, m.chat.id, status.message_id, parse_mode='Markdown')
-    else:
-        bot.edit_message_text("❌ فشل استخراج المعلومات. تأكد من الرابط.", m.chat.id, status.message_id)
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return 'OK', 200
-    else:
-        return 'Invalid content type', 403
-
 @app.route('/')
-def index():
-    return 'Bot is running...'
+def get_match():
+    target_url = request.args.get('url')
+    if not target_url:
+        return jsonify({
+            "status": "error",
+            "message": "Please provide a URL parameter. Example: /?url=https://www.ysscores.com/..."
+        }), 400
+        
+    fixed_url = fix_url(target_url)
+    match_data = extract_match_info(fixed_url)
+    
+    if "error" in match_data:
+        return jsonify({"status": "error", "message": match_data["error"]}), 500
+        
+    return jsonify({
+        "status": "success",
+        "url": fixed_url,
+        "data": match_data
+    }), 200
