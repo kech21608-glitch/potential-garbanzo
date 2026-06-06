@@ -3,7 +3,6 @@ import cloudscraper
 from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify
 
-scraper = cloudscraper.create_scraper()
 app = Flask(__name__)
 
 def clean_team_name(name):
@@ -14,11 +13,29 @@ def clean_team_name(name):
     return name.strip()
 
 def extract_match_info(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    # استخدام سكرابر مجهز لتخطي الحماية مع إعدادات متصفح حديث
+    scraper = cloudscraper.create_scraper(
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'desktop': True
+        }
+    )
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'ar,en-US;q=0.9,en;q=0.8',
+        'Referer': 'https://www.google.com/'
+    }
+    
     try:
-        response = scraper.get(url, headers=headers, timeout=15)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        response = scraper.get(url, headers=headers, timeout=10)
         
+        if response.status_code != 200:
+            return {"error": f"الموقع هدف أرجع كود خطأ: {response.status_code}"}
+            
+        soup = BeautifulSoup(response.text, 'html.parser')
         info = {"team1": "", "team2": "", "time": "", "date": "", "stadium": "", "channel": ""}
         
         vs_match = re.search(r'/([^/]+)-vs-([^/]+)', url, re.I)
@@ -63,7 +80,7 @@ def extract_match_info(url):
         
         return info
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": f"فشل الاتصال بالموقع: {str(e)}"}
 
 def fix_url(raw_url):
     raw_url = raw_url.strip()
@@ -91,7 +108,11 @@ def get_match():
     match_data = extract_match_info(fixed_url)
     
     if "error" in match_data:
-        return jsonify({"status": "error", "message": match_data["error"]}), 500
+        return jsonify({
+            "status": "error", 
+            "message": match_data["error"],
+            "note": "قد يكون الموقع المستهدف مالي بحماية تمنع خوادم Vercel من الدخول"
+        }), 200
         
     return jsonify({
         "status": "success",
